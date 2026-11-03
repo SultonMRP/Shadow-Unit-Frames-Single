@@ -1528,7 +1528,7 @@ local function loadUnitOptions()
 			local unit = info[2]
 			local tag = info[#(info)]
 
-			if( tag == "paragon" and not ShadowUF.Paragon ) then
+			if( ( tag == "paragon" or tag == "()paragon" ) and not ShadowUF.Paragon ) then
 				return true
 			end
 			
@@ -1567,6 +1567,29 @@ local function loadUnitOptions()
 		end
 		
 		local savedTagTexts = {}
+		local function isTightParagonTag(tag)
+			return tag == "paragon" or tag == "()paragon"
+		end
+
+		local function textHasTightParagon(text, tag)
+			if( tag == "paragon" ) then
+				return string.find(text, "[paragon]", 1, true) ~= nil
+			end
+			if( tag == "()paragon" ) then
+				return string.find(text, "[()paragon]", 1, true) ~= nil
+			end
+		end
+
+		local function stripTightParagon(text, tag)
+			if( tag == "paragon" ) then
+				text = string.gsub(text, "%[paragon%]", "")
+			elseif( tag == "()paragon" ) then
+				text = string.gsub(text, "%[%(%)paragon%]", "")
+			end
+			text = string.gsub(text, "  ", "")
+			return string.trim(text)
+		end
+
 		local function selectTag(info, value)
 			local unit = info[2]
 			local id = tonumber(info[#(info) - 2])
@@ -1586,6 +1609,8 @@ local function loadUnitOptions()
 							if( not ShadowUF.Tags.unitRestrictions[tag] or ShadowUF.Tags.unitRestrictions[tag] == unit ) then
 								if( text == "" ) then
 									savedTagTexts[unit] = string.format("[%s]", tag)
+								elseif( isTightParagonTag(tag) ) then
+									savedTagTexts[unit] = savedTagTexts[unit] .. string.format("[%s]", tag)
 								else
 									savedTagTexts[unit] = string.format("%s[( )%s]", savedTagTexts[unit], tag)
 								end
@@ -1597,6 +1622,8 @@ local function loadUnitOptions()
 				else
 					if( text == "" ) then
 						text = string.format("[%s]", tag)
+					elseif( isTightParagonTag(tag) ) then
+						text = text .. string.format("[%s]", tag)
 					else
 						text = string.format("%s[( )%s]", text, tag)
 					end
@@ -1609,13 +1636,17 @@ local function loadUnitOptions()
 					if( not ShadowUF.Tags.unitBlacklist[tagGroup] or not string.match(unit, ShadowUF.Tags.unitBlacklist[tagGroup]) ) then
 						if( not ShadowUF.Tags.unitRestrictions[tag] or ShadowUF.Tags.unitRestrictions[tag] == unit ) then
 							local text = getVariable(unit, "text", id, "text")
-							for matchedTag in string.gmatch(text, "%[(.-)%]") do
-								local safeTag = "[" .. matchedTag .. "]"
-								if( string.match(safeTag, "%[" .. tag .. "%]") or string.match(safeTag, "%)" .. tag .. "%]") or string.match(safeTag, "%[" .. tag .. "%(") or string.match(safeTag, "%)" .. tag .. "%(") ) then
-									text = string.gsub(text, "%[" .. string.gsub(string.gsub(matchedTag, "%)", "%%)"), "%(", "%%(") .. "%]", "")
-									text = string.gsub(text, "  ", "")
-									text = string.trim(text)
-									break
+							if( isTightParagonTag(tag) ) then
+								text = stripTightParagon(text, tag)
+							else
+								for matchedTag in string.gmatch(text, "%[(.-)%]") do
+									local safeTag = "[" .. matchedTag .. "]"
+									if( string.match(safeTag, "%[" .. tag .. "%]") or string.match(safeTag, "%)" .. tag .. "%]") or string.match(safeTag, "%[" .. tag .. "%(") or string.match(safeTag, "%)" .. tag .. "%(") ) then
+										text = string.gsub(text, "%[" .. string.gsub(string.gsub(matchedTag, "%)", "%%)"), "%(", "%%(") .. "%]", "")
+										text = string.gsub(text, "  ", "")
+										text = string.trim(text)
+										break
+									end
 								end
 							end
 							
@@ -1627,14 +1658,17 @@ local function loadUnitOptions()
 				
 			-- Removing a tag from a single unit, super easy :<
 			else
-				-- Ugly, but it works
-				for matchedTag in string.gmatch(text, "%[(.-)%]") do
-					local safeTag = "[" .. matchedTag .. "]"
-					if( string.match(safeTag, "%[" .. tag .. "%]") or string.match(safeTag, "%)" .. tag .. "%]") or string.match(safeTag, "%[" .. tag .. "%(") or string.match(safeTag, "%)" .. tag .. "%(") ) then
-						text = string.gsub(text, "%[" .. string.gsub(string.gsub(matchedTag, "%)", "%%)"), "%(", "%%(") .. "%]", "")
-						text = string.gsub(text, "  ", "")
-						text = string.trim(text)
-						break
+				if( isTightParagonTag(tag) ) then
+					text = stripTightParagon(text, tag)
+				else
+					for matchedTag in string.gmatch(text, "%[(.-)%]") do
+						local safeTag = "[" .. matchedTag .. "]"
+						if( string.match(safeTag, "%[" .. tag .. "%]") or string.match(safeTag, "%)" .. tag .. "%]") or string.match(safeTag, "%[" .. tag .. "%(") or string.match(safeTag, "%)" .. tag .. "%(") ) then
+							text = string.gsub(text, "%[" .. string.gsub(string.gsub(matchedTag, "%)", "%%)"), "%(", "%%(") .. "%]", "")
+							text = string.gsub(text, "  ", "")
+							text = string.trim(text)
+							break
+						end
 					end
 				end
 			end
@@ -1655,6 +1689,10 @@ local function loadUnitOptions()
 		local function getTag(info)
 			local text = getVariable(info[2], "text", tonumber(info[#(info) - 2]), "text")
 			local tag = info[#(info)]
+
+			if( isTightParagonTag(tag) ) then
+				return textHasTightParagon(text, tag)
+			end
 			
 			-- FUN WITH PATTERN MATCHING
 			if( string.match(text, "%[" .. tag .. "%]") or string.match(text, "%)" .. tag .. "%]") or string.match(text, "%[" .. tag .. "%(") or string.match(text, "%)" .. tag .. "%(") ) then
@@ -4443,7 +4481,7 @@ local function loadTagOptions()
 		name = getTagName,
 		desc = getTagHelp,
 		hidden = function(info)
-			if( info[#(info)] == "paragon" and not ShadowUF.Paragon ) then
+			if( ( info[#(info)] == "paragon" or info[#(info)] == "()paragon" ) and not ShadowUF.Paragon ) then
 				return true
 			end
 			return isSearchHidden(info)

@@ -1115,6 +1115,7 @@ Tags.eventType = {
 	["RAID_ROSTER_UPDATE"] = "unitless",
 	["RAID_TARGET_UPDATE"] = "unitless",
 	["PLAYER_TARGET_CHANGED"] = "unitless",
+	["PLAYER_FOCUS_CHANGED"] = "unitless",
 	["PARTY_MEMBERS_CHANGED"] = "unitless",
 	["PARTY_LEADER_CHANGED"] = "unitless",
 	["PLAYER_ENTERING_WORLD"] = "unitless",
