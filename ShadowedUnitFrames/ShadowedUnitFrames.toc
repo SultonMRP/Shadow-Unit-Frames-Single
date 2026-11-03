@@ -4,6 +4,7 @@
 ## Author: Shadowed
 ## Version: v3.2.12-5-g3fb7edd
 ## SavedVariables: ShadowedUFDB
+## Dependencies: SingleWoW
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, LibHealComm-4.0, AceGUI-3.0-SharedMediaWidgets, SingleWoWParagon
 ## X-Curse-Packaged-Version: v3.2.12-5-g3fb7edd
 ## X-Curse-Project-Name: Shadowed Unit Frames

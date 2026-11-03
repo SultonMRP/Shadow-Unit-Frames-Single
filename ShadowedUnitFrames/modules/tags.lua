@@ -1134,7 +1134,9 @@ Tags.unitBlacklist = {
 
 -- Single tags that can only be used on a single unit
 Tags.unitRestrictions = {
-	["pvp:time"] = "player",	
+	["pvp:time"] = "player",
+	["paragon"] = "player",
+	["()paragon"] = "player",
 }
 
 -- Event scanner to automatically figure out what events a tag will need
