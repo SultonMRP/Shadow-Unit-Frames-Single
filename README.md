@@ -6,7 +6,7 @@ Requires the **SingleWoW** addon. Paragon is **player frame only**. The number c
 
 ## Install
 
-Download **Shadow.Unit.Frames.Single.1.2.zip** from [Releases](https://github.com/SultonMRP/Shadow-Unit-Frames-Single/releases) and extract it into `Interface\AddOns` so you have:
+Download **Shadow.Unit.Frames.Single.1.3.zip** from [Releases](https://github.com/SultonMRP/Shadow-Unit-Frames-Single/releases) and extract it into `Interface\AddOns` so you have:
 
 `Interface\AddOns\ShadowedUnitFrames\ShadowedUnitFrames.toc`  
 `Interface\AddOns\ShadowedUF_Options\ShadowedUF_Options.toc`
@@ -23,6 +23,8 @@ Then `/reload`.
 ```
 
 Neither tag adds a space.
+
+Right-click the **target** frame for **Set Focus** (runs `/focus`) or **Clear Focus** (runs `/clearfocus`) if that unit is already your focus. SingleWoW blocks the default unit-popup Set Focus when addons change that menu, so this is a SUF-owned click that sends the slash command.
 
 ## Notes
 

@@ -348,6 +348,136 @@ end
 
 local menuOwner
 
+-- SingleWoW: changing UnitPopupMenus breaks the default Set Focus button, so SUF
+-- strips those entries and adds Set/Clear Focus under the unit name.
+-- The game will not execute /focus from addon Lua (ChatEdit_SendText is ignored);
+-- typing it works because Enter on the chat box is Blizzard's path. Cover our
+-- menu row with a SUF-owned button parented to UIParent (not DropDownList) that
+-- runs /focus on the real click. No unit name — current target is already selected.
+local insertFocusAfterName
+local insertingFocusButton
+local pendingFocusMacro
+local pendingFocusRow
+
+local slashFocusButton = CreateFrame("Button", "SUFSlashFocusButton", UIParent, "SecureActionButtonTemplate")
+slashFocusButton:RegisterForClicks("AnyUp")
+slashFocusButton:SetFrameStrata("TOOLTIP")
+slashFocusButton:SetAttribute("type", "macro")
+slashFocusButton:SetAttribute("macrotext", "/focus")
+slashFocusButton:Hide()
+
+local function OpenFocusChat(command)
+	if( ChatFrame_OpenChat ) then
+		ChatFrame_OpenChat(command)
+		return
+	end
+	local editBox = ChatFrameEditBox or ChatFrame1EditBox or (DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.editBox)
+	if( not editBox ) then
+		return
+	end
+	editBox:SetText(command)
+	editBox:Show()
+	if( editBox.SetFocus ) then
+		editBox:SetFocus()
+	end
+end
+
+slashFocusButton:SetScript("OnEnter", function(self)
+	local owner = self.menuRow
+	if( owner and owner:GetScript("OnEnter") ) then
+		owner:GetScript("OnEnter")(owner)
+	end
+end)
+slashFocusButton:SetScript("OnLeave", function(self)
+	local owner = self.menuRow
+	if( owner and owner:GetScript("OnLeave") ) then
+		owner:GetScript("OnLeave")(owner)
+	end
+end)
+slashFocusButton:SetScript("PostClick", function()
+	HideDropDownMenu(1)
+end)
+
+local function HideSlashFocusOverlay()
+	slashFocusButton.menuRow = nil
+	if( InCombatLockdown() ) then
+		return
+	end
+	slashFocusButton:Hide()
+end
+
+local function PlaceSlashFocusOverlay()
+	if( InCombatLockdown() or not pendingFocusRow or not pendingFocusRow:IsShown() ) then
+		return
+	end
+
+	slashFocusButton:SetAttribute("type", "macro")
+	slashFocusButton:SetAttribute("macrotext", pendingFocusMacro or "/focus")
+	slashFocusButton:SetParent(UIParent)
+	slashFocusButton:ClearAllPoints()
+	slashFocusButton:SetPoint("TOPLEFT", pendingFocusRow, "TOPLEFT")
+	slashFocusButton:SetPoint("BOTTOMRIGHT", pendingFocusRow, "BOTTOMRIGHT")
+	slashFocusButton.menuRow = pendingFocusRow
+	slashFocusButton:Show()
+end
+
+local function AddSlashFocusButton(which)
+	local clear = which == "clear" or (UnitExists("focus") and UnitExists("target") and UnitIsUnit("target", "focus"))
+	local info = UIDropDownMenu_CreateInfo()
+	info.notCheckable = 1
+	if( clear ) then
+		info.text = CLEAR_FOCUS or "Clear Focus"
+		pendingFocusMacro = "/clearfocus"
+		info.func = function()
+			OpenFocusChat("/clearfocus")
+		end
+	else
+		info.text = SET_FOCUS or "Set Focus"
+		pendingFocusMacro = "/focus"
+		info.func = function()
+			OpenFocusChat("/focus")
+		end
+	end
+	UIDropDownMenu_AddButton(info, 1)
+	pendingFocusRow = _G["DropDownList1Button" .. DropDownList1.numButtons]
+end
+
+hooksecurefunc("UIDropDownMenu_AddButton", function(info, level)
+	if( insertingFocusButton or not insertFocusAfterName ) then
+		return
+	end
+	if( (level or 1) ~= 1 ) then
+		return
+	end
+
+	insertingFocusButton = true
+	local which = insertFocusAfterName
+	insertFocusAfterName = nil
+	AddSlashFocusButton(which)
+	insertingFocusButton = nil
+end)
+
+local function WrapDropDownInitialize(dropDown, which)
+	if( not dropDown or dropDown.sufFocusWrapped ) then
+		return
+	end
+	dropDown.sufFocusWrapped = true
+
+	local original = dropDown.initialize
+	dropDown.initialize = function(self, level, ...)
+		if( not level or level == 1 ) then
+			insertFocusAfterName = which
+		end
+		if( original ) then
+			original(self, level, ...)
+		end
+		insertFocusAfterName = nil
+	end
+end
+
+WrapDropDownInitialize(TargetFrameDropDown, "set")
+WrapDropDownInitialize(FocusFrameDropDown, "clear")
+
 local function PrepareMenu(menuFrame, unit, name, id)
 	if( not menuFrame ) then
 		return nil
@@ -598,9 +728,13 @@ local function OnEnter(self)
 end
 
 -- Reset the fact that we clamped the dropdown to the screen to be safe
+DropDownList1:HookScript("OnShow", function()
+	PlaceSlashFocusOverlay()
+end)
 DropDownList1:HookScript("OnHide", function(self)
 	self:SetClampedToScreen(false)
 	menuOwner = nil
+	HideSlashFocusOverlay()
 end)
 
 -- Do not steal DropDownList1 (master loot / other menus) or yank our list off
