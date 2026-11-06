@@ -332,21 +332,19 @@ function Units:CheckGroupedUnitStatus(frame)
 end
 
 -- IceHUD (and similar) also ToggleDropDownMenu on the same right-click.
--- A second toggle closes the list as soon as it opens.
+-- Swallow only that duplicate on the SUF-owned unit menu, not Alchemy / Macro Commander.
 local originalToggleDropDownMenu = ToggleDropDownMenu
-local lastToggleFrame, lastToggleAt
+local menuOwner
+local sufOwnsList
+local lastSufDrop, lastSufAt
 function ToggleDropDownMenu(...)
 	local dropDownFrame = select(3, ...)
 	local now = GetTime()
-	if( dropDownFrame and dropDownFrame == lastToggleFrame and lastToggleAt and (now - lastToggleAt) < 0.08 ) then
+	if( sufOwnsList and dropDownFrame and dropDownFrame == lastSufDrop and lastSufAt and (now - lastSufAt) < 0.08 ) then
 		return
 	end
-	lastToggleFrame = dropDownFrame
-	lastToggleAt = now
 	return originalToggleDropDownMenu(...)
 end
-
-local menuOwner
 
 -- SingleWoW: changing UnitPopupMenus breaks the default Set Focus button, so SUF
 -- strips those entries and adds Set/Clear Focus under the unit name.
@@ -400,6 +398,7 @@ end)
 
 local function HideSlashFocusOverlay()
 	slashFocusButton.menuRow = nil
+	pendingFocusRow = nil
 	if( InCombatLockdown() ) then
 		return
 	end
@@ -407,7 +406,7 @@ local function HideSlashFocusOverlay()
 end
 
 local function PlaceSlashFocusOverlay()
-	if( InCombatLockdown() or not pendingFocusRow or not pendingFocusRow:IsShown() ) then
+	if( not sufOwnsList or InCombatLockdown() or not pendingFocusRow or not pendingFocusRow:IsShown() ) then
 		return
 	end
 
@@ -494,17 +493,29 @@ local function ShowMenu(self)
 	local name = UnitName(unit)
 	local id = self.unitID
 	menuOwner = self
+	sufOwnsList = true
+
+	local function OpenSUFMenu(frame)
+		if( not frame ) then
+			sufOwnsList = false
+			menuOwner = nil
+			return
+		end
+		lastSufDrop = frame
+		lastSufAt = GetTime()
+		originalToggleDropDownMenu(1, nil, frame, "cursor")
+	end
 
 	if( UnitIsUnit(unit, "player") ) then
-		ToggleDropDownMenu(1, nil, PrepareMenu(PlayerFrameDropDown, unit, name, id) or PlayerFrameDropDown, "cursor")
+		OpenSUFMenu(PrepareMenu(PlayerFrameDropDown, unit, name, id) or PlayerFrameDropDown)
 	elseif( self.unit == "pet" or self.unit == "vehicle" ) then
-		ToggleDropDownMenu(1, nil, PrepareMenu(PetFrameDropDown, unit, name, id) or PetFrameDropDown, "cursor")
+		OpenSUFMenu(PrepareMenu(PetFrameDropDown, unit, name, id) or PetFrameDropDown)
 	elseif( self.unit == "target" ) then
-		ToggleDropDownMenu(1, nil, PrepareMenu(TargetFrameDropDown, unit, name, id) or TargetFrameDropDown, "cursor")
+		OpenSUFMenu(PrepareMenu(TargetFrameDropDown, unit, name, id) or TargetFrameDropDown)
 	elseif( self.unitType == "boss" ) then
-		ToggleDropDownMenu(1, nil, PrepareMenu(_G["Boss" .. self.unitID .. "TargetFrameDropDown"], unit, name, id), "cursor")
+		OpenSUFMenu(PrepareMenu(_G["Boss" .. self.unitID .. "TargetFrameDropDown"], unit, name, id))
 	elseif( self.unit == "focus" ) then
-		ToggleDropDownMenu(1, nil, PrepareMenu(FocusFrameDropDown, unit, name, id) or FocusFrameDropDown, "cursor")
+		OpenSUFMenu(PrepareMenu(FocusFrameDropDown, unit, name, id) or FocusFrameDropDown)
 	elseif( self.unitRealType == "party" ) then
 		-- Hidden Blizzard party frames leave PartyMemberFrameNDropDown without unit/name.
 		-- An empty list shows and hides immediately.
@@ -517,7 +528,7 @@ local function ShowMenu(self)
 			end
 			PrepareMenu(menuFrame, unit, name, id)
 		end
-		ToggleDropDownMenu(1, nil, menuFrame, "cursor")
+		OpenSUFMenu(menuFrame)
 	elseif( self.unitRealType == "raid" ) then
 		HideDropDownMenu(1)
 		
@@ -525,7 +536,10 @@ local function ShowMenu(self)
 		menuFrame.displayMode = "MENU"
 		menuFrame.initialize = RaidFrameDropDown_Initialize
 		PrepareMenu(menuFrame, unit, name, id)
-		ToggleDropDownMenu(1, nil, menuFrame, "cursor")
+		OpenSUFMenu(menuFrame)
+	else
+		sufOwnsList = false
+		menuOwner = nil
 	end	
 end
 
@@ -727,13 +741,19 @@ local function OnEnter(self)
 	end
 end
 
--- Reset the fact that we clamped the dropdown to the screen to be safe
+-- Only overlay / unclamp when this list is the SUF unit menu.
 DropDownList1:HookScript("OnShow", function()
-	PlaceSlashFocusOverlay()
+	if( sufOwnsList ) then
+		PlaceSlashFocusOverlay()
+	end
 end)
 DropDownList1:HookScript("OnHide", function(self)
-	self:SetClampedToScreen(false)
+	if( sufOwnsList ) then
+		self:SetClampedToScreen(false)
+	end
+	sufOwnsList = false
 	menuOwner = nil
+	lastSufDrop = nil
 	HideSlashFocusOverlay()
 end)
 
